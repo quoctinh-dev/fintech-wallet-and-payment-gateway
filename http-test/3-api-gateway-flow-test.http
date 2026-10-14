@@ -1,0 +1,128 @@
+### ===========================================================
+### FINTECH WALLET - API GATEWAY E2E TEST (PHASE 4)
+### ===========================================================
+
+### ============================================================
+### 1A. [CHỈ CHẠY 1 LẦN ĐẦU TIÊN] Đăng ký User 1 (Người gửi)
+### ============================================================
+POST http://localhost:80/wallet-auth/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0977000001",
+  "password": "Password123!",
+  "fullName": "New User One"
+}
+
+### ============================================================
+### 1B. [CHẠY MỖI KHI CẦN TOKEN MỚI] Đăng nhập User 1
+### ============================================================
+# @name loginUser1
+POST http://localhost:80/wallet-auth/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0977000001",
+  "password": "Password123!"
+}
+
+> {%
+    client.test("Login User 1 successfully", function() {
+        client.assert(response.status === 200, "Login failed");
+        client.global.set("auth_token_1", response.body.data.token);
+        client.global.set("userId_1", response.body.data.userId);
+    });
+%}
+
+### ============================================================
+### 2. Lấy thông tin Ví của User 1
+### ============================================================
+# @name getAccountUser1
+GET http://localhost:80/wallet-account/api/v1/accounts/user/{{userId_1}}?type=USER_WALLET
+Authorization: Bearer {{auth_token_1}}
+
+> {%
+    client.test("Get Account 1 successfully", function() {
+        client.global.set("accountId_1", response.body.data.id);
+    });
+%}
+
+### ============================================================
+### 3A. [CHỈ CHẠY 1 LẦN ĐẦU TIÊN] Đăng ký User 2 (Người nhận)
+### ============================================================
+POST http://localhost:80/wallet-auth/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0977000002",
+  "password": "Password123!",
+  "fullName": "New User Two"
+}
+
+### ============================================================
+### 3B. [CHẠY MỖI KHI CẦN TOKEN MỚI] Đăng nhập User 2
+### ============================================================
+# @name loginUser2
+POST http://localhost:80/wallet-auth/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0977000002",
+  "password": "Password123!"
+}
+
+> {%
+    client.test("Login User 2 successfully", function() {
+        client.global.set("auth_token_2", response.body.data.token);
+        client.global.set("userId_2", response.body.data.userId);
+    });
+%}
+
+### ============================================================
+### 4. Lấy thông tin Ví của User 2
+### ============================================================
+# @name getAccountUser2
+GET http://localhost:80/wallet-account/api/v1/accounts/user/{{userId_2}}?type=USER_WALLET
+Authorization: Bearer {{auth_token_2}}
+
+> {%
+    client.test("Get Account 2 successfully", function() {
+        client.global.set("accountId_2", response.body.data.id);
+    });
+%}
+
+### ============================================================
+### 5. Nạp tiền vào Ví User 1 (Tạo Payment URL)
+### ============================================================
+POST http://localhost:80/wallet-payment/api/v1/payments/create
+Content-Type: application/json
+Authorization: Bearer {{auth_token_1}}
+
+{
+  "accountId": "{{accountId_1}}",
+  "amount": 500000,
+  "idempotencyKey": "IDEM_{{$uuid}}",
+  "description": "Nạp tiền qua API Gateway",
+  "provider": "VNPAY"
+}
+
+### ============================================================
+### 6. Chuyển tiền từ User 1 sang User 2
+### ============================================================
+POST http://localhost:80/wallet-transaction/api/v1/transfers
+Content-Type: application/json
+Authorization: Bearer {{auth_token_1}}
+
+{
+  "fromAccountId": "{{accountId_1}}",
+  "toAccountId": "{{accountId_2}}",
+  "amount": 100000,
+  "idempotencyKey": "transfer-{{$uuid}}",
+  "description": "Chuyển tiền qua API Gateway"
+}
+
+### ============================================================
+### 7. Xem lịch sử giao dịch của User 1
+### ============================================================
+GET http://localhost:80/wallet-transaction/api/v1/transactions/history/{{accountId_1}}?page=0&size=10
+Authorization: Bearer {{auth_token_1}}

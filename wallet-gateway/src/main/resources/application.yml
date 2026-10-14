@@ -1,0 +1,153 @@
+server:
+  port: ${PORT:80}
+
+spring:
+  application:
+    name: wallet-gateway
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        # ==========================================
+        # 1. Swagger OpenAPI Aggregator Routes
+        # ==========================================
+        - id: auth-openapi
+          uri: lb://wallet-auth
+          predicates:
+            - Path=/v3/api-docs/wallet-auth
+          filters:
+            - RewritePath=/v3/api-docs/wallet-auth, /v3/api-docs
+
+        - id: account-openapi
+          uri: lb://wallet-account
+          predicates:
+            - Path=/v3/api-docs/wallet-account
+          filters:
+            - RewritePath=/v3/api-docs/wallet-account, /v3/api-docs
+
+        - id: transaction-openapi
+          uri: lb://wallet-transaction
+          predicates:
+            - Path=/v3/api-docs/wallet-transaction
+          filters:
+            - RewritePath=/v3/api-docs/wallet-transaction, /v3/api-docs
+
+        - id: payment-openapi
+          uri: lb://wallet-payment
+          predicates:
+            - Path=/v3/api-docs/wallet-payment
+          filters:
+            - RewritePath=/v3/api-docs/wallet-payment, /v3/api-docs
+
+        - id: ledger-openapi
+          uri: lb://wallet-ledger
+          predicates:
+            - Path=/v3/api-docs/wallet-ledger
+          filters:
+            - RewritePath=/v3/api-docs/wallet-ledger, /v3/api-docs
+
+        # OpenAPI Python FastAPI
+        - id: fraud-openapi
+          uri: ${FRAUD_SERVICE_URL:http://localhost:8000}
+          predicates:
+            - Path=/v3/api-docs/wallet-fraud-detection
+          filters:
+            - RewritePath=/v3/api-docs/wallet-fraud-detection, /openapi.json
+
+        # ==========================================
+        # 2. Business Service Routes
+        # ==========================================
+        - id: wallet-auth-route
+          uri: lb://wallet-auth
+          predicates:
+            - Path=/api/v1/auth/**
+
+        - id: wallet-users-route
+          uri: lb://wallet-auth
+          predicates:
+            - Path=/api/v1/users/**
+
+        - id: wallet-account-route
+          uri: lb://wallet-account
+          predicates:
+            - Path=/api/v1/accounts/**
+
+        - id: wallet-transfer-route
+          uri: lb://wallet-transaction
+          predicates:
+            - Path=/api/v1/transfers/**
+
+        - id: wallet-withdrawal-route
+          uri: lb://wallet-transaction
+          predicates:
+            - Path=/api/v1/withdrawals/**
+
+        - id: wallet-transaction-route
+          uri: lb://wallet-transaction
+          predicates:
+            - Path=/api/v1/transactions/**
+
+        - id: wallet-payment-route
+          uri: lb://wallet-payment
+          predicates:
+            - Path=/api/v1/payments/**
+
+        - id: wallet-ledger-route
+          uri: lb://wallet-ledger
+          predicates:
+            - Path=/api/v1/ledger/**
+
+        # Route API to Python FastAPI
+        - id: wallet-fraud-route
+          uri: ${FRAUD_SERVICE_URL:http://localhost:8000}
+          predicates:
+            - Path=/api/v1/fraud/**
+          filters:
+            - RewritePath=/api/v1/fraud/(?<segment>.*), /${segment}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250655368566D5971}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+security:
+  hmac:
+    protected-paths:
+      - "/**/api/v1/transfers"
+      - "/**/api/v1/transfers/**"
+      - "/**/api/v1/withdrawals"
+      - "/**/api/v1/withdrawals/**"
+
+# Swagger UI tập trung trên cổng 80 (Đầy đủ cả 6 phân hệ)
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: 1. Authentication & Users (wallet-auth)
+        url: /v3/api-docs/wallet-auth
+      - name: 2. Account & Wallet (wallet-account)
+        url: /v3/api-docs/wallet-account
+      - name: 3. Transaction Engine (wallet-transaction)
+        url: /v3/api-docs/wallet-transaction
+      - name: 4. Payment Gateway (wallet-payment)
+        url: /v3/api-docs/wallet-payment
+      - name: 5. Ledger & Reconciliation (wallet-ledger)
+        url: /v3/api-docs/wallet-ledger
+      - name: 6. Fraud Detection (wallet-fraud-detection)
+        url: /v3/api-docs/wallet-fraud-detection

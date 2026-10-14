@@ -1,0 +1,108 @@
+### Bước 1: TEST ĐĂNG KÝ USER
+POST http://localhost:8081/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0987654326",
+  "password": "Password123!",
+  "fullName": "Nguyen Van A"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.token);
+%}
+
+### Bước 1.1: TEST ĐĂNG KÝ LỖI SỐ ĐIỆN THOẠI ĐÃ TỒN TẠI
+POST http://localhost:8081/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0987654326",
+  "password": "Password123!",
+  "fullName": "Nguyen Van B"
+}
+
+### Bước 2: TEST ĐĂNG NHẬP
+POST http://localhost:8081/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0987654326",
+  "password": "Password123!"
+}
+
+> {%
+    client.global.set("test_userId", response.body.data.userId);
+    client.global.set("auth_token", response.body.data.token);
+%}
+
+### Bước 3: TEST KIỂM TRA VÍ USER_WALLET
+GET http://localhost:8082/api/v1/accounts/user/{{test_userId}}?type=USER_WALLET
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.global.set("accountId", response.body.data.id);
+%}
+
+### Bước 4: TEST LẤY VÍ USER_WALLET KHÔNG CÓ TOKEN
+GET http://localhost:8082/api/v1/accounts/user/{{test_userId}}?type=USER_WALLET
+
+### Bước 5: TEST ĐĂNG NHẬP SAI PASSWORD
+POST http://localhost:8081/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0987654326",
+  "password": "WrongPassword123!"
+}
+
+### Bước 6: TEST NẠP TIỀN QUA VNPAY (Tạo URL thanh toán)
+POST http://localhost:8084/api/v1/payments/create
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "accountId": "{{accountId}}",
+  "amount": 50000.00,
+  "provider": "VNPAY",
+  "idempotencyKey": "deposit-req-008",
+  "description": "Nạp tiền qua VNPay"
+}
+
+### Bước 7: KIỂM TRA SỐ DƯ TÀI KHOẢN SAU KHI NẠP
+GET http://localhost:8082/api/v1/accounts/{{accountId}}
+Authorization: Bearer {{auth_token}}
+
+### Bước 8: TEST RÚT TIỀN (WITHDRAWAL)
+POST http://localhost:8080/api/v1/withdrawals
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "accountId": "{{accountId}}",
+  "amount": 10000.00,
+  "bankCode": "VCB",
+  "bankAccountNumber": "19039393939393",
+  "idempotencyKey": "withdraw-req-001",
+  "description": "Rút tiền về tài khoản Vietcombank"
+}
+
+### Bước 9: TEST RÚT TIỀN THẤT BẠI (TRÙNG LẶP / IDEMPOTENCY)
+POST http://localhost:8080/api/v1/withdrawals
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "accountId": "{{accountId}}",
+  "amount": 10000.00,
+  "bankCode": "VCB",
+  "bankAccountNumber": "19039393939393",
+  "idempotencyKey": "withdraw-req-001",
+  "description": "Rút tiền click đúp"
+}
+
+### Bước 10: TEST XEM LỊCH SỬ GIAO DỊCH
+GET http://localhost:8080/api/v1/transactions/history/{{accountId}}?page=0&size=10
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+

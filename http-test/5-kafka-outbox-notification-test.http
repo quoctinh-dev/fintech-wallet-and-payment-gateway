@@ -1,0 +1,116 @@
+### =========================================================================
+### BƯỚC 1: ĐĂNG KÝ VÀ ĐĂNG NHẬP USER 1 (NGƯỜI GỬI)
+### =========================================================================
+
+### 1.1 Đăng ký User 1
+POST http://localhost:80/wallet-auth/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0911000001",
+  "password": "Password123!",
+  "fullName": "Nguyen Van A"
+}
+# Lưu ý: Khi gọi API này thành công, nếu chúng ta code xong phần Outbox cho wallet-auth, bạn sẽ thấy 1 event được lưu vào bảng outbox_events của wallet-auth.
+
+### 1.2 Đăng nhập User 1
+POST http://localhost:80/wallet-auth/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0911000001",
+  "password": "Password123!"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.token);
+    client.global.set("userId_1", response.body.data.userId);
+%}
+
+### 1.3 Lấy Ví User 1
+GET http://localhost:80/wallet-account/api/v1/accounts/user/{{userId_1}}?type=USER_WALLET
+Authorization: Bearer {{auth_token}}
+
+> {% client.global.set("accountId_1", response.body.data.id); %}
+
+
+### =========================================================================
+### BƯỚC 2: ĐĂNG KÝ VÀ ĐĂNG NHẬP USER 2 (NGƯỜI NHẬN)
+### =========================================================================
+
+### 2.1 Đăng ký User 2
+POST http://localhost:80/wallet-auth/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0911000002",
+  "password": "Password123!",
+  "fullName": "Tran Thi B"
+}
+
+### 2.2 Đăng nhập User 2
+POST http://localhost:80/wallet-auth/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0911000002",
+  "password": "Password123!"
+}
+
+> {%
+    client.global.set("auth_token_2", response.body.data.token);
+    client.global.set("userId_2", response.body.data.userId);
+%}
+
+### 2.3 Lấy Ví User 2
+GET http://localhost:80/wallet-account/api/v1/accounts/user/{{userId_2}}?type=USER_WALLET
+Authorization: Bearer {{auth_token_2}}
+
+> {% client.global.set("accountId_2", response.body.data.id); %}
+
+### 2.4. Nạp tiền vào Ví User 1 (Tạo Payment URL)
+POST http://localhost:80/wallet-payment/api/v1/payments/create
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+    {
+      "accountId": "{{accountId_1}}",
+      "amount": 500000,
+      "idempotencyKey": "IDEM_{{$uuid}}",
+      "description": "Nạp tiền qua API Gateway",
+      "provider": "VNPAY"
+    }
+
+### =========================================================================
+### SCENARIO 1: TEST LUỒNG CHUẨN OUTBOX KHI CHUYỂN TIỀN
+### =========================================================================
+# (LƯU Ý: Nếu Account 1 chưa có tiền, API này sẽ báo lỗi INSUFFICIENT_BALANCE và không bắn Kafka.
+# Bạn cần nạp tiền thủ công qua DBeaver vào bảng account_balances hoặc mock VNPAY trước).
+POST http://localhost:80/wallet-transaction/api/v1/transfers
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "fromAccountId": "{{accountId_1}}",
+  "toAccountId": "{{accountId_2}}",
+  "amount": 10000,
+  "idempotencyKey": "kafka-test-success-{{$uuid}}",
+  "description": "Test luồng Outbox Kafka thành công"
+}
+
+
+### =========================================================================
+### SCENARIO 2: TEST ROLLBACK KHI THIẾU TIỀN
+### =========================================================================
+# Cố tình chuyển số tiền cực lớn để bị lỗi. Sẽ không có event nào được bắn lên Kafka.
+POST http://localhost:80/wallet-transaction/api/v1/transfers
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "fromAccountId": "{{accountId_1}}",
+  "toAccountId": "{{accountId_2}}",
+  "amount": 99999999999,
+  "idempotencyKey": "kafka-test-fail-money-{{$uuid}}",
+  "description": "Test Rollback Outbox do thiếu tiền"
+}

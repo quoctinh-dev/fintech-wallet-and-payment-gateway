@@ -1,0 +1,25 @@
+plugins {
+    id 'java-library'
+}
+dependencies {
+    implementation libs.spring.boot.web
+    api libs.spring.boot.security
+    implementation libs.spring.boot.validation
+    implementation libs.spring.boot.data.redis
+    implementation 'org.springframework.data:spring-data-commons'
+
+    api 'io.grpc:grpc-api:1.58.0'
+    api 'io.grpc:grpc-stub:1.58.0'
+
+    api libs.spring.boot.data.jpa
+    api libs.spring.kafka
+    api libs.postgresql
+    api 'com.fasterxml.jackson.core:jackson-databind'
+
+    api libs.spring.cloud.eureka.client
+    api libs.spring.boot.actuator
+
+    api 'com.google.code.gson:gson:2.11.0'
+
+    api 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+}

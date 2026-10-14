@@ -1,0 +1,8 @@
+dependencies {
+    implementation project(':wallet-common')
+    implementation project(':wallet-grpc')
+    
+    implementation libs.spring.boot.data.jpa
+    runtimeOnly libs.postgresql
+    testImplementation libs.spring.boot.test
+}

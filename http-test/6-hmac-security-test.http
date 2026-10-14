@@ -1,0 +1,171 @@
+### ===========================================================
+### BÀI TEST BẢO MẬT HMAC CHO API GATEWAY (KÈM DỮ LIỆU THẬT)
+### ===========================================================
+
+### -----------------------------------------------------------
+### BƯỚC 1: KHỞI TẠO USER 1 (NGƯỜI GỬI)
+### -----------------------------------------------------------
+
+### 1A. Đăng ký User 1 (Chỉ chạy 1 lần nếu chưa có)
+POST http://localhost:80/wallet-auth/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0988000001",
+  "password": "Password123!",
+  "fullName": "Sender User One"
+}
+
+### 1B. Đăng nhập User 1 để lấy Token & User ID
+# @name loginUser1
+POST http://localhost:80/wallet-auth/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0988000001",
+  "password": "Password123!"
+}
+
+> {%
+    client.test("Lấy token User 1 thành công", function() {
+        client.global.set("auth_token_1", response.body.data.token);
+        client.global.set("userId_1", response.body.data.userId);
+    });
+%}
+
+### 1C. Lấy Account ID ví của User 1
+# @name getAccountUser1
+GET http://localhost:80/wallet-account/api/v1/accounts/user/{{userId_1}}?type=USER_WALLET
+Authorization: Bearer {{auth_token_1}}
+
+> {%
+    client.test("Lấy ví User 1 thành công", function() {
+        client.global.set("accountId_1", response.body.data.id);
+    });
+%}
+
+
+### -----------------------------------------------------------
+### BƯỚC 2: KHỞI TẠO USER 2 (NGƯỜI NHẬN)
+### -----------------------------------------------------------
+
+### 2A. Đăng ký User 2 (Chỉ chạy 1 lần nếu chưa có)
+POST http://localhost:80/wallet-auth/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0988000002",
+  "password": "Password123!",
+  "fullName": "Receiver User Two"
+}
+
+### 2B. Đăng nhập User 2 để lấy User ID
+# @name loginUser2
+POST http://localhost:80/wallet-auth/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0988000002",
+  "password": "Password123!"
+}
+
+> {%
+    client.test("Lấy token User 2 thành công", function() {
+        client.global.set("auth_token_2", response.body.data.token);
+        client.global.set("userId_2", response.body.data.userId);
+    });
+%}
+
+### 2C. Lấy Account ID ví của User 2
+# @name getAccountUser2
+GET http://localhost:80/wallet-account/api/v1/accounts/user/{{userId_2}}?type=USER_WALLET
+Authorization: Bearer {{auth_token_2}}
+
+> {%
+    client.test("Lấy ví User 2 thành công", function() {
+        client.global.set("accountId_2", response.body.data.id);
+    });
+%}
+
+
+### ===========================================================
+### BƯỚC 3: KỊCH BẢN THÀNH CÔNG (CHỮ KÝ HMAC HỢP LỆ)
+### Dùng Account ID thật của User 1 và User 2
+### ===========================================================
+< {%
+    var method = request.method;
+    var path = "/wallet-transaction/api/v1/transfers";
+    var timestamp = new Date().getTime().toString();
+
+    var fromAccount = client.global.get("accountId_1");
+    var toAccount = client.global.get("accountId_2");
+
+    var bodyObj = {
+        "fromAccountId": fromAccount,
+        "toAccountId": toAccount,
+        "amount": 10000,
+        "idempotencyKey": "hmac-real-" + $uuid,
+        "description": "Chuyen tien HMAC hop le"
+    };
+    var body = JSON.stringify(bodyObj);
+
+    var secretKey = "FintechWalletSuperSecretKeyForHmacSecurity";
+    var payload = method + path + timestamp + body;
+    var signature = crypto.hmac.sha256().withTextSecret(secretKey).updateWithText(payload).digest().toHex();
+
+    request.variables.set("timestamp", timestamp);
+    request.variables.set("signature", signature);
+    request.variables.set("req_body", body);
+%}
+POST http://localhost:80/wallet-transaction/api/v1/transfers
+Content-Type: application/json
+Authorization: Bearer {{auth_token_1}}
+X-Timestamp: {{timestamp}}
+X-Signature: {{signature}}
+
+{{req_body}}
+
+
+### ===========================================================
+### BƯỚC 4: KỊCH BẢN HACKER: BỊ CHẶN (401/403 FORBIDDEN)
+### Hacker sửa số tiền thành 50.000.000 nhưng dùng chữ ký cũ
+### ===========================================================
+< {%
+    var method = request.method;
+    var path = "/wallet-transaction/api/v1/transfers";
+    var timestamp = new Date().getTime().toString();
+
+    var fromAccount = client.global.get("accountId_1");
+    var toAccount = client.global.get("accountId_2");
+
+    // Payload gốc mà hacker bắt lén được
+    var originalBody = JSON.stringify({
+        "fromAccountId": fromAccount,
+        "toAccountId": toAccount,
+        "amount": 10000,
+        "idempotencyKey": "hmac-tamper-" + $uuid,
+        "description": "Chuyen tien HMAC hop le"
+    });
+
+    var secretKey = "FintechWalletSuperSecretKeyForHmacSecurity";
+    var payload = method + path + timestamp + originalBody;
+    var signature = crypto.hmac.sha256().withTextSecret(secretKey).updateWithText(payload).digest().toHex();
+
+    request.variables.set("timestamp", timestamp);
+    request.variables.set("signature", signature);
+    request.variables.set("from_id", fromAccount);
+    request.variables.set("to_id", toAccount);
+%}
+POST http://localhost:80/wallet-transaction/api/v1/transfers
+Content-Type: application/json
+Authorization: Bearer {{auth_token_1}}
+X-Timestamp: {{timestamp}}
+X-Signature: {{signature}}
+
+{
+  "fromAccountId": "{{from_id}}",
+  "toAccountId": "{{to_id}}",
+  "amount": 50000000,
+  "idempotencyKey": "hmac-tamper-fake",
+  "description": "Hacker da sua so tien len 50 trieu"
+}

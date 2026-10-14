@@ -1,0 +1,11 @@
+dependencies {
+    implementation project(':wallet-common')
+
+    implementation libs.spring.boot.web
+    implementation libs.spring.boot.data.jpa
+    runtimeOnly libs.postgresql
+
+    implementation libs.spring.kafka
+
+    implementation libs.spring.cloud.eureka.client
+}

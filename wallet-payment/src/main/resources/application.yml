@@ -1,0 +1,49 @@
+server:
+  port: ${PORT:8084}
+
+spring:
+  application:
+    name: wallet-payment
+
+grpc:
+  server:
+    port: -1
+  client:
+    wallet-transaction:
+      address: 'discovery:///wallet-transaction'
+      negotiation-type: plaintext
+    wallet-account:
+      address: 'discovery:///wallet-account'
+      negotiation-type: plaintext
+
+vnpay:
+  pay-url: ${VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+  return-url: ${VNPAY_RETURN_URL:http://localhost:8080/api/v1/payments/VNPAY/return}
+  tmn-code: ${VNPAY_TMN_CODE:DEMO_TMN_CODE}
+  secret-key: ${VNPAY_SECRET_KEY:DEMO_SECRET_KEY}
+  version: ${VNPAY_VERSION:2.1.0}
+  command: ${VNPAY_COMMAND:pay}
+  expire-minutes: ${VNPAY_EXPIRE_MINUTES:15}
+
+eureka:
+  client:
+    registry-fetch-interval-seconds: 5
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    health-check-url-path: /actuator/health
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    org.springframework.boot.context.properties: WARN
+    org.springframework.cloud: WARN

@@ -1,0 +1,46 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop   # Tạo schema mới mỗi lần test, xoá khi xong
+    show-sql: false           # Tắt SQL log khi test cho gọn output
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+
+
+# Tắt log của Spring Boot khi chạy test
+logging:
+  level:
+    root: WARN
+    com.fintech: INFO
+
+# System config cho test — giữ nguyên UUID hệ thống
+system:
+  user-id: 00000000-0000-0000-0000-000000000000
+  default-currency: VND
+
+# VNPay config
+vnpay:
+  pay-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+  return-url: http://localhost:8080/api/v1/payments/VNPAY/return
+  tmn-code: TEST_TMN_CODE
+  secret-key: TEST_SECRET_KEY_32_CHARS_MIN_HERE
+  version: 2.1.0
+  command: pay
+  expire-minutes: 15
+
+jwt:
+  secret: 404E635266556A586E3272357538782F413F4428472B4B6250655368566D5971
+  expiration: 86400000 # 24 Hours

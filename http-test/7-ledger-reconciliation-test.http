@@ -1,0 +1,45 @@
+### ==============================================================================
+### TEST 7: KIỂM TOÁN & ĐỐI SOÁT SỔ CÁI KẾ TOÁN KÉP (FINANCIAL RECONCILIATION)
+### ==============================================================================
+
+### 1. Đăng nhập để lấy Token (Admin / User)
+# @name login
+POST http://localhost:80/wallet-auth/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0988000001",
+  "password": "Password123!"
+}
+
+> {%
+    client.test("Đăng nhập thành công", function() {
+        client.assert(response.status === 200, "Đăng nhập thất bại");
+        client.global.set("auth_token", response.body.data.token);
+    });
+%}
+
+### ==============================================================================
+### 2. Đối soát sổ cái qua API Gateway (Port 80) kèm JWT Bearer Token
+### ==============================================================================
+GET http://localhost:80/wallet-ledger/api/v1/ledger/reconciliation
+Authorization: Bearer {{auth_token}}
+Accept: application/json
+
+> {%
+    client.test("Mã trạng thái trả về là 200", function() {
+        client.assert(response.status === 200, "Trạng thái phản hồi không phải 200");
+    });
+    client.test("Sổ cái cân bằng (Không có chênh lệch)", function() {
+        client.assert(response.body.data.balanced === true, "Sổ cái KHÔNG cân bằng!");
+        client.assert(response.body.data.totalDelta === 0, "Tổng giá trị chênh lệch (totalDelta) khác 0!");
+    });
+%}
+
+### ==============================================================================
+### 3. Gọi trực tiếp Ledger Service (Port 8083) kèm Header nội bộ (Giả lập Gateway)
+### ==============================================================================
+GET http://localhost:8083/api/v1/ledger/reconciliation
+X-User-Id: 00000000-0000-0000-0000-000000000000
+X-User-Roles: ROLE_ADMIN
+Accept: application/json

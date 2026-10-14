@@ -1,0 +1,84 @@
+### 1. Đăng ký User 1 (Người gửi)
+POST http://localhost:8081/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0900000001",
+  "password": "Password123!",
+  "fullName": "User One"
+}
+
+> {%
+    client.test("Register User 1 successfully", function() {
+        client.assert(response.status === 200 || response.status === 201, "Register failed");
+        client.global.set("auth_token", response.body.data.token);
+        client.global.set("userId_1", response.body.data.userId);
+    });
+%}
+
+### 2. Lấy thông tin Ví của User 1
+GET http://localhost:8082/api/v1/accounts/user/{{userId_1}}?type=USER_WALLET
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("Get Account 1 successfully", function() {
+        client.global.set("accountId_1", response.body.data.id);
+    });
+%}
+
+### 3. Đăng ký User 2 (Người nhận)
+POST http://localhost:8081/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0900000002",
+  "password": "Password123!",
+  "fullName": "User Two"
+}
+
+> {%
+    client.test("Register User 2 successfully", function() {
+        client.global.set("auth_token_2", response.body.data.token);
+        client.global.set("userId_2", response.body.data.userId);
+    });
+%}
+
+### 4. Lấy thông tin Ví của User 2
+GET http://localhost:8082/api/v1/accounts/user/{{userId_2}}?type=USER_WALLET
+Authorization: Bearer {{auth_token_2}}
+
+> {%
+    client.test("Get Account 2 successfully", function() {
+        client.global.set("accountId_2", response.body.data.id);
+    });
+%}
+
+### 5. Nạp tiền vào Ví User 1 (Tạo Payment URL)
+POST http://localhost:8084/api/v1/payments/create
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "accountId": "{{accountId_1}}",
+  "amount": 500000,
+  "idempotencyKey": "IDEM_{{$uuid}}",
+  "description": "Nạp tiền vào ví User 1",
+  "provider": "VNPAY"
+}
+
+### 6. Chuyển tiền từ User 1 sang User 2
+POST http://localhost:8080/api/v1/transfers
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "fromAccountId": "{{accountId_1}}",
+  "toAccountId": "{{accountId_2}}",
+  "amount": 100000,
+  "idempotencyKey": "transfer-{{$uuid}}",
+  "description": "User 1 chuyển tiền cho User 2"
+}
+
+### 7. Xem lịch sử giao dịch của User 1
+GET http://localhost:8080/api/v1/transactions/history/{{accountId_1}}?page=0&size=10
+Authorization: Bearer {{auth_token}}

@@ -1,0 +1,14 @@
+dependencies {
+    implementation project(':wallet-common')
+    implementation project(':wallet-grpc')
+
+    implementation libs.spring.boot.web
+    implementation libs.spring.boot.validation
+    implementation libs.spring.boot.data.jpa
+    runtimeOnly libs.postgresql
+    testImplementation libs.spring.boot.test
+
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+
+
+}

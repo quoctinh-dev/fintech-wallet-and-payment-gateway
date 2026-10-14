@@ -1,0 +1,13 @@
+rootProject.name = 'fintech-wallet-microservices'
+
+include 'wallet-common'
+include 'wallet-account'
+include 'wallet-ledger'
+include 'wallet-transaction'
+include 'wallet-payment'
+include 'wallet-auth'
+include 'wallet-grpc'
+include 'wallet-registry'
+include 'wallet-gateway'
+include 'wallet-notification'
+include 'wallet-fraud-detection'

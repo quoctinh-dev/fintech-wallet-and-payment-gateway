@@ -1,0 +1,16 @@
+dependencies {
+    implementation project(':wallet-common')
+    implementation project(':wallet-grpc')
+
+    implementation libs.spring.boot.web
+    implementation libs.spring.boot.validation
+    implementation libs.spring.boot.security
+    implementation libs.spring.boot.data.jpa
+    implementation libs.spring.boot.data.redis
+    runtimeOnly libs.postgresql
+    testImplementation libs.spring.boot.test
+    implementation libs.jjwt.api
+    runtimeOnly libs.jjwt.impl
+    runtimeOnly libs.jjwt.jackson
+
+}

@@ -1,0 +1,217 @@
+### ==========================================================================
+### MODULE 3: TRANSACTION ENGINE & PAYMENT INTEGRITY TESTS
+### Hệ thống: Fintech Wallet & Payment Gateway (:80)
+### Sử dụng: Tài khoản Admin (0987111222) và User Bích (0987333444)
+### ==========================================================================
+
+### --------------------------------------------------------------------------
+### BƯỚC 0: ĐĂNG NHẬP LẤY ACCESS TOKEN TỰ ĐỘNG
+### --------------------------------------------------------------------------
+
+### 0A. Đăng nhập Admin (Nguyễn Văn An - Ví: 44df6843-443f-4477-a362-515830c0f1e6)
+# @name loginAdmin
+POST http://localhost:80/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0987111222",
+  "password": "Password@123"
+}
+
+> {%
+    client.test("Đăng nhập Admin thành công", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.global.set("admin_token", response.body.data.token);
+    });
+%}
+
+### 0B. Đăng nhập User Bích (Trần Thị Bích - Ví: 2f1b118c-c82e-43e7-8241-fcae3fa1b4a9)
+# @name loginBich
+POST http://localhost:80/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0987333444",
+  "password": "NewPassword@456"
+}
+
+> {%
+    client.test("Đăng nhập User Bích thành công", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.global.set("bich_token", response.body.data.token);
+    });
+%}
+
+
+### ==========================================================================
+### API 21: CHUYỂN TIỀN P2P (BẢO MẬT HMAC-SHA256 & IDEMPOTENCY)
+### ==========================================================================
+
+### 21.1. Chuyển tiền P2P thành công (Happy Path: Admin -> Bích 20,000 VND)
+< {%
+    var method = "POST";
+    var path = "/api/v1/transfers";
+    var timestamp = new Date().getTime().toString();
+    var idempotencyKey = "idem-p2p-" + $uuid;
+
+    var bodyObj = {
+        "fromAccountId": "44df6843-443f-4477-a362-515830c0f1e6",
+        "toAccountId": "2f1b118c-c82e-43e7-8241-fcae3fa1b4a9",
+        "amount": 20000.00,
+        "idempotencyKey": idempotencyKey,
+        "description": "Admin chuyen tien cho Bich qua HTTP Client"
+    };
+    var bodyStr = JSON.stringify(bodyObj);
+
+    var secretKey = "FintechWalletSuperSecretKeyForHmacSecurity";
+    var payload = method + path + timestamp + bodyStr;
+    var signature = crypto.hmac.sha256().withTextSecret(secretKey).updateWithText(payload).digest().toHex();
+
+    request.variables.set("timestamp", timestamp);
+    request.variables.set("signature", signature);
+    request.variables.set("savedIdempotencyKey", idempotencyKey);
+    request.variables.set("reqBody", bodyStr);
+    client.global.set("lastIdempotencyKey", idempotencyKey);
+%}
+POST http://localhost:80/api/v1/transfers
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+X-Timestamp: {{timestamp}}
+X-Signature: {{signature}}
+
+{{reqBody}}
+
+> {%
+    client.test("Chuyển tiền thành công 200 OK", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.assert(response.body.data.status === "SUCCESS", "Giao dịch không thành công");
+    });
+%}
+
+
+### 21.2. Chống lặp giao dịch (Idempotency Protection: Gửi lại cùng Idempotency Key -> 409 Conflict)
+< {%
+    var method = "POST";
+    var path = "/api/v1/transfers";
+    var timestamp = new Date().getTime().toString();
+    var duplicateKey = client.global.get("lastIdempotencyKey");
+
+    var bodyObj = {
+        "fromAccountId": "44df6843-443f-4477-a362-515830c0f1e6",
+        "toAccountId": "2f1b118c-c82e-43e7-8241-fcae3fa1b4a9",
+        "amount": 20000.00,
+        "idempotencyKey": duplicateKey,
+        "description": "Gui lai giao dich trung lap"
+    };
+    var bodyStr = JSON.stringify(bodyObj);
+
+    var secretKey = "FintechWalletSuperSecretKeyForHmacSecurity";
+    var payload = method + path + timestamp + bodyStr;
+    var signature = crypto.hmac.sha256().withTextSecret(secretKey).updateWithText(payload).digest().toHex();
+
+    request.variables.set("timestamp", timestamp);
+    request.variables.set("signature", signature);
+    request.variables.set("reqBody", bodyStr);
+%}
+POST http://localhost:80/api/v1/transfers
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+X-Timestamp: {{timestamp}}
+X-Signature: {{signature}}
+
+{{reqBody}}
+
+> {%
+    client.test("Bị chặn Idempotency 409 Conflict", function() {
+        client.assert(response.status === 409, "Không chặn được trùng lặp giao dịch");
+        client.assert(response.body.code === 3002, "Mã lỗi không phải 3002");
+    });
+%}
+
+
+### 21.3. Hacker chỉnh sửa số tiền (Tampering Detection: Sai chữ ký HMAC -> 403 Forbidden)
+< {%
+    var method = "POST";
+    var path = "/api/v1/transfers";
+    var timestamp = new Date().getTime().toString();
+
+    // Body gốc tính chữ ký là 10,000 VND
+    var originalBody = JSON.stringify({
+        "fromAccountId": "44df6843-443f-4477-a362-515830c0f1e6",
+        "toAccountId": "2f1b118c-c82e-43e7-8241-fcae3fa1b4a9",
+        "amount": 10000.00,
+        "idempotencyKey": "hacker-test-" + $uuid,
+        "description": "Chuyen 10k"
+    });
+
+    var secretKey = "FintechWalletSuperSecretKeyForHmacSecurity";
+    var payload = method + path + timestamp + originalBody;
+    var signature = crypto.hmac.sha256().withTextSecret(secretKey).updateWithText(payload).digest().toHex();
+
+    request.variables.set("timestamp", timestamp);
+    request.variables.set("signature", signature);
+%}
+POST http://localhost:80/api/v1/transfers
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+X-Timestamp: {{timestamp}}
+X-Signature: {{signature}}
+
+{
+  "fromAccountId": "44df6843-443f-4477-a362-515830c0f1e6",
+  "toAccountId": "2f1b118c-c82e-43e7-8241-fcae3fa1b4a9",
+  "amount": 99999999.00,
+  "idempotencyKey": "hacker-tampered-body",
+  "description": "Hacker da sua len 99 trieu"
+}
+
+> {%
+    client.test("Gateway phát hiện can thiệp và từ chối 403", function() {
+        client.assert(response.status === 403, "Gateway không chặn được request bị sửa đổi");
+    });
+%}
+
+
+### ==========================================================================
+### API 22: RÚT TIỀN VỀ NGÂN HÀNG (HMAC-SHA256)
+### ==========================================================================
+
+### 22.1. Rút tiền thành công (Admin rút 50,000 VND về tài khoản NCB)
+< {%
+    var method = "POST";
+    var path = "/api/v1/withdrawals";
+    var timestamp = new Date().getTime().toString();
+    var idempotencyKey = "idem-wdr-" + $uuid;
+
+    var bodyObj = {
+        "accountId": "44df6843-443f-4477-a362-515830c0f1e6",
+        "amount": 50000.00,
+        "bankCode": "NCB",
+        "bankAccountNumber": "9704198526191432198",
+        "idempotencyKey": idempotencyKey,
+        "description": "Rut tien ve the ngan hang"
+    };
+    var bodyStr = JSON.stringify(bodyObj);
+
+    var secretKey = "FintechWalletSuperSecretKeyForHmacSecurity";
+    var payload = method + path + timestamp + bodyStr;
+    var signature = crypto.hmac.sha256().withTextSecret(secretKey).updateWithText(payload).digest().toHex();
+
+    request.variables.set("timestamp", timestamp);
+    request.variables.set("signature", signature);
+    request.variables.set("reqBody", bodyStr);
+%}
+POST http://localhost:80/api/v1/withdrawals
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+X-Timestamp: {{timestamp}}
+X-Signature: {{signature}}
+
+{{reqBody}}
+
+> {%
+    client.test("Rút tiền thành công 200 OK", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.assert(response.body.data.status === "SUCCESS", "Trạng thái rút tiền không thành công");
+    });
+%}

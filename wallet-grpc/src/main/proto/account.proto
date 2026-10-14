@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.fintech.wallet.grpc.account";
+option java_outer_classname = "AccountProto";
+
+service AccountGrpcService {
+  rpc GetAccountWithLock (GetAccountRequest) returns (AccountResponse);
+  rpc CreateAccount (CreateAccountRequest) returns (AccountResponse);
+  rpc GetAccountById (GetAccountRequest) returns (AccountResponse);
+  rpc GetAccountByUserIdAndType (GetAccountByUserRequest) returns (AccountResponse);
+}
+
+message GetAccountRequest {
+  string account_id = 1;
+}
+
+message CreateAccountRequest {
+  string user_id = 1;
+  string account_type = 2;
+  string currency = 3;
+}
+
+message AccountResponse {
+  string id = 1;
+  string user_id = 2;
+  string account_type = 3;
+  string currency = 4;
+  double balance = 5;
+  string created_at = 6;
+}
+
+message GetAccountByUserRequest {
+  string user_id = 1;
+  string account_type = 2;
+}
+

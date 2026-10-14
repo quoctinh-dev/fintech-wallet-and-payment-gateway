@@ -1,0 +1,8 @@
+dependencies {
+    implementation project(':wallet-common')
+    implementation project(':wallet-grpc')
+
+    implementation libs.spring.boot.web
+    implementation libs.spring.boot.validation
+    testImplementation libs.spring.boot.test
+}

@@ -1,0 +1,71 @@
+server:
+  port: ${PORT:${SERVER_PORT:8080}}
+
+grpc:
+  server:
+    port: ${GRPC_PORT:${GRPC_SERVER_PORT:9091}}
+
+  client:
+    wallet-account:
+      address: 'discovery:///wallet-account'
+      negotiation-type: plaintext
+    wallet-ledger:
+      address: 'discovery:///wallet-ledger'
+      negotiation-type: plaintext
+
+spring:
+  application:
+    name: wallet-transaction
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:15433}/${DB_NAME:wallet_transaction_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:19052004}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:2000}
+
+system:
+  user-id: ${SYSTEM_USER_ID:00000000-0000-0000-0000-000000000000}
+  default-currency: ${SYSTEM_DEFAULT_CURRENCY:VND}
+
+eureka:
+  client:
+    registry-fetch-interval-seconds: 5
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    health-check-url-path: /actuator/health
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  outbox:
+    enabled: true

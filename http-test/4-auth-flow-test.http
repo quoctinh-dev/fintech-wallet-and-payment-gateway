@@ -1,0 +1,120 @@
+### ===========================================================
+### FINTECH WALLET - BÀI TEST BẢO MẬT: REFRESH TOKEN & SỔ ĐEN
+### ===========================================================
+
+### 0. ĐĂNG KÝ (Tạo dữ liệu test)
+# @name registerUser
+POST http://localhost:80/wallet-auth/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "phoneNumber": "0911222333",
+  "password": "Password123!",
+  "fullName": "Test Refresh Token"
+}
+
+### ============================================================
+### 1. ĐĂNG NHẬP (Lấy Cặp Vé mới)
+# @name loginUser
+POST http://localhost:80/wallet-auth/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "0911222333",
+  "password": "Password123!"
+}
+
+> {%
+    client.test("Login successfully", function() {
+        client.assert(response.status === 200, "Login failed");
+        // Lưu lại cặp vé vào bộ nhớ tạm của IntelliJ
+        client.global.set("access_token", response.body.data.token);
+        client.global.set("refresh_token", response.body.data.refreshToken);
+        client.global.set("user_id", response.body.data.userId);
+    });
+%}
+
+### ============================================================
+### 2. DÙNG ACCESS TOKEN GỌI API (Thành công)
+# @name getAccount
+GET http://localhost:80/wallet-account/api/v1/accounts/user/{{user_id}}?type=USER_WALLET
+Authorization: Bearer {{access_token}}
+
+> {%
+    client.test("Get Account successfully", function() {
+        client.assert(response.status === 200, "Token invalid");
+    });
+%}
+
+### ============================================================
+### 3. ĐỔI VÉ (REFRESH TOKEN)
+# @name refreshToken
+POST http://localhost:80/wallet-auth/api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+> {%
+    client.test("Refresh Token successfully", function() {
+        client.assert(response.status === 200, "Refresh failed");
+        // Lưu lại cặp vé MỚI (Vé cũ đã bị xóa khỏi DB)
+        client.global.set("new_access_token", response.body.data.token);
+        client.global.set("new_refresh_token", response.body.data.refreshToken);
+    });
+%}
+
+### ============================================================
+### 4. BẢO MẬT: ĐỔI VÉ LẠI BẰNG REFRESH TOKEN CŨ (Sẽ Thất Bại - 401)
+# Vì vé cũ đã bị cơ chế Token Rotation xóa khỏi DB ở Bước 3
+POST http://localhost:80/wallet-auth/api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+### ============================================================
+### 5. DÙNG ACCESS TOKEN MỚI ĐỂ ĐĂNG XUẤT (Cho vào Sổ Đen)
+# @name logoutUser
+POST http://localhost:80/wallet-auth/api/v1/auth/logout
+Content-Type: application/json
+Authorization: Bearer {{new_access_token}}
+X-User-Id: {{user_id}}
+
+> {%
+    client.test("Logout successfully", function() {
+        client.assert(response.status === 200, "Logout failed");
+    });
+%}
+
+### ============================================================
+### 6. BẢO MẬT: DÙNG ACCESS TOKEN ĐÃ ĐĂNG XUẤT GỌI LẠI API (Sẽ bị chặn - 401)
+# Gateway sẽ soi vào Redis và thấy token này đang nằm trong Blacklist
+GET http://localhost:80/wallet-account/api/v1/accounts/user/{{user_id}}?type=USER_WALLET
+Authorization: Bearer {{new_access_token}}
+
+### ============================================================
+### 7. BẢO MẬT: DÙNG REFRESH TOKEN ĐỂ ĐỔI VÉ SAU KHI ĐĂNG XUẤT (Sẽ bị chặn - 401)
+# Vì hàm logout() đã quét sạch mọi Refresh Token của user này khỏi DB
+POST http://localhost:80/wallet-auth/api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{new_refresh_token}}"
+}
+
+
+### ============================================================
+### 8. BÀI TEST PHÂN QUYỀN (RBAC & ABAC): XEM TRỘM VÍ NGƯỜI KHÁC (Sẽ Thất Bại - 403)
+# @name testABAC
+# Cố tình dùng access_token của User hiện tại để gọi lấy ví của một User ID lạ hoắc
+GET http://localhost:80/wallet-account/api/v1/accounts/user/123e4567-e89b-12d3-a456-426614174000?type=USER_WALLET
+Authorization: Bearer {{access_token}}
+
+> {%
+    client.test("Prevent Accessing Other User Account", function() {
+        client.assert(response.status === 403, "Lỗi! Đáng lẽ phải chặn (403 Forbidden)");
+    });
+%}

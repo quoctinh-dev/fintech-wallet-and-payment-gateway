@@ -1,0 +1,60 @@
+server:
+  port: ${PORT:8081}
+
+spring:
+  application:
+    name: wallet-auth
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:15433}/${DB_NAME:wallet_auth_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:19052004}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+
+grpc:
+  server:
+    port: -1
+  client:
+    wallet-account:
+      address: 'discovery:///wallet-account'
+      negotiation-type: plaintext
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250655368566D5971}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+eureka:
+  client:
+    registry-fetch-interval-seconds: 5
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    health-check-url-path: /actuator/health
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  outbox:
+    enabled: true

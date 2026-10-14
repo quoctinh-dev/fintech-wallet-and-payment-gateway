@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.fintech.wallet.grpc.transaction";
+option java_outer_classname = "TransactionProto";
+
+service TransactionGrpcService {
+  rpc CreatePendingDeposit (DepositRequest) returns (EmptyResponse);
+  rpc ConfirmDeposit (ConfirmDepositRequest) returns (EmptyResponse);
+  rpc FailDeposit (FailDepositRequest) returns (EmptyResponse);
+}
+
+message DepositRequest {
+  string account_id = 1;
+  double amount = 2;
+  string idempotency_key = 3;
+  string description = 4;
+}
+
+message ConfirmDepositRequest {
+  string idempotency_key = 1;
+}
+
+message FailDepositRequest {
+  string idempotency_key = 1;
+}
+
+message EmptyResponse {
+  bool success = 1;
+}
